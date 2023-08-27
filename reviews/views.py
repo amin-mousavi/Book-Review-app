@@ -5,6 +5,8 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
 from django.utils import timezone
 from django.core.files.images import ImageFile
+from django.core.exceptions import PermissionDenied
+from django.contrib.auth.decorators import permission_required, login_required, user_passes_test
 
 from .models import Book, Review, Contributor, Publisher
 from .utils import average_rating
@@ -83,6 +85,10 @@ def book_search(request):
     )
 
 
+def is_staff_user(user):
+    return user.is_staff
+
+@user_passes_test(is_staff_user)
 def publisher_edit(request, pk=None):
     if pk is not None:
         publisher = get_object_or_404(Publisher, pk=pk)
@@ -109,10 +115,15 @@ def publisher_edit(request, pk=None):
                   })
     
     
+@login_required
 def review_edit(request, book_pk, review_pk=None):
     book = get_object_or_404(Book, pk=book_pk)
     if review_pk is not None:
         review = get_object_or_404(Review, book_id=book_pk, pk=review_pk)
+        
+        user = request.user
+        if not user.is_staff and review.creator.id != user.id:
+            raise PermissionDenied
     else:
         review = None
         
@@ -140,6 +151,8 @@ def review_edit(request, book_pk, review_pk=None):
                     "related_model_type": "Book"
                     })
     
+    
+@login_required
 def book_media(request, pk):
     book = get_object_or_404(Book, pk=pk)
     if request.method == 'POST':
